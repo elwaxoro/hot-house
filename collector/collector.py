@@ -15,6 +15,23 @@ rtl_cmd = ["rtl_433", "-q", "-R", "20", "-F", "json"]
 # Postgres connect deets
 db_config = 'host=127.0.0.1 port=5432 user=hotapp password=hothouse dbname=hothouse'
 
+insert_sample = """
+    INSERT INTO sample (sensor_id, data, read_dt) 
+    VALUES (%s, %s, NOW());
+"""
+update_latest = """
+    UPDATE latest 
+    SET data=%s, read_dt=NOW() 
+    WHERE sensor_id=%s;
+"""
+insert_latest = """
+    INSERT INTO latest (sensor_id, data, read_dt) 
+    SELECT %s, %s, NOW() 
+    WHERE NOT EXISTS 
+        (SELECT 1 FROM latest WHERE sensor_id=%s);
+"""
+
+
 # Continuously reads from rtl_433 and yeilds output
 def rtl_loop(cmd):
     print('Starting RTL subprocess')
@@ -34,11 +51,22 @@ def read_json(raw):
     except ValueError, e:
         return None
 
-
 # Save the collected samples to postgres
 def upload_sample(samples, cursor):
     for key in samples:
-        cursor.execute('INSERT INTO samples(sensor_id, read_dt, data) VALUES (%s, NOW(), %s)', (key, json.dumps(samples[key])))
+        dump = json.dumps(samples[key])
+
+        cursor.execute(insert_sample, (key, dump))
+        # TODO upgrade to postgres 9.5+
+        # cursor.execute("""
+        #     INSERT INTO latest (sensor_id, data, read_dt)
+        #     VALUES (%s, %s, NOW()) 
+        #     ON CONFLICT (sensor_id) DO UPDATE
+        #     SET data = excluded.data,
+        #         read_dt = excluded.read_dt;
+        #     """, (key, json.dumps(samples[key])))
+        cursor.execute(update_latest, (dump, key))
+        cursor.execute(insert_latest, (key, dump, key))
     print('Saved %s samples' % len(samples))
 
 
