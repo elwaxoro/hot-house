@@ -19,6 +19,12 @@ CREATE TABLE sample(
 	data JSONB
 );
 
+CREATE TABLE latest(
+	sensor_id VARCHAR(30) PRIMARY KEY,
+	read_dt TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	data JSONB
+);
+
 CREATE TABLE room(
 	room_id VARCHAR(30) PRIMARY KEY,
 	sensor_id VARCHAR(30) NOT NULL,
